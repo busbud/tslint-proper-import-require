@@ -1,0 +1,17 @@
+{
+  "name": "tslint-proper-import-require",
+  "version": "0.0.1",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "lint": "busbud-tslint",
+    "test": "npm run lint"
+  },
+  "devDependencies": {
+    "@types/node": "^8.0.34",
+    "busbud-tslint": "^0.0.3",
+    "tslint": "^5.7.0",
+    "typescript": "^2.5.3"
+  }
+}
