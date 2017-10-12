@@ -37,23 +37,24 @@ function loadMainFile(module_name: string): string | undefined {
 
 // The walker takes care of all the work.
 class ProperImportRequire extends Lint.RuleWalker {
-  private createCustomFailure(es6: boolean, start: number, end: number, variable_name: string, module_name: string, quote: string) {
+  private createCustomFailure(es6: boolean, start: number, length: number, variable_name: string, module_name: string, quote: string) {
+    console.log(module_name, start, length);
     if (es6) {
       const replacement = `import * as ${variable_name} from ${quote}${module_name}${quote};`;
       return this.createFailure(
         start,
-        end,
+        length,
         `${module_name} is using ES6 exports. Use ${replacement} instead.`,
-        Lint.Replacement.replaceFromTo(start, end, replacement)
+        Lint.Replacement.replaceFromTo(start, start + length, replacement)
       )
     }
 
     const replacement = `import ${variable_name} = require(${quote}${module_name}${quote});`;
     return this.createFailure(
       start,
-      end,
+      length,
       `${module_name} is not using ES6 exports. Use ${replacement} instead.`,
-      Lint.Replacement.replaceFromTo(start, end, replacement)
+      Lint.Replacement.replaceFromTo(start, start + length, replacement)
     )
   }
 
