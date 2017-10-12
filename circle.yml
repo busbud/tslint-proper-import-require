@@ -1,0 +1,15 @@
+dependencies:
+  cache_directories:
+    - ~/.cache/yarn
+    - ~/.npm
+    - ./node_modules
+  override:
+    - yarn install
+machine:
+  environment:
+    NODE_ENV: test
+  node:
+    version: 6.11.3
+test:
+  override:
+    - yarn test
