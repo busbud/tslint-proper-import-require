@@ -1,11 +1,12 @@
 {
   "name": "tslint-proper-import-require",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "index.js",
   "license": "MIT",
   "scripts": {
     "build": "tsc",
     "lint": "busbud-tslint",
+    "prepublish": "npm run build",
     "test": "npm run lint"
   },
   "devDependencies": {

@@ -20,6 +20,21 @@ function findModulePath(module_name: string): string {
   }
 }
 
+function loadMainFile(module_name: string): string | undefined {
+  const module_path = findModulePath(module_name);
+  if (!module_path) return;
+
+  const pkg = require(path.join(module_path, 'package.json'));
+  let main_file_path = path.join(module_path, pkg.main || 'index.js');
+  if (!fs.existsSync(main_file_path)) {
+    if (main_file_path.match(/\.js/,)) return;
+    main_file_path += '.js';
+    if (!fs.existsSync(main_file_path)) return;
+  }
+
+  return fs.readFileSync(main_file_path, 'utf8');
+}
+
 // The walker takes care of all the work.
 class ProperImportRequire extends Lint.RuleWalker {
   private createCustomFailure(es6: boolean, start: number, end: number, variable_name: string, module_name: string, quote: string) {
@@ -63,22 +78,17 @@ class ProperImportRequire extends Lint.RuleWalker {
       return super.visitImportDeclaration(node);
     }
 
-    const module_path = findModulePath(module_name);
-    if (module_path) {
-      const pkg = require(path.join(module_path, 'package.json'));
-      const main_file = fs.readFileSync(path.join(module_path, pkg.main), 'utf8');
-
-      if (!main_file.match(/__esModule/g)) {
-        module_cache[module_name] = false;
-        this.addFailure(this.createCustomFailure(
-          false,
-          node.getStart(),
-          node.getWidth(),
-          variable_name,
-          module_name,
-          quote
-        ));
-      }
+    const main_file = loadMainFile(module_name);
+    if (main_file && !main_file.match(/__esModule/g)) {
+      module_cache[module_name] = false;
+      this.addFailure(this.createCustomFailure(
+        false,
+        node.getStart(),
+        node.getWidth(),
+        variable_name,
+        module_name,
+        quote
+      ));
     }
 
     super.visitImportDeclaration(node);
@@ -106,22 +116,17 @@ class ProperImportRequire extends Lint.RuleWalker {
       return;
     }
 
-    const module_path = findModulePath(module_name);
-    if (module_path) {
-      const pkg = require(path.join(module_path, 'package.json'));
-      const main_file = fs.readFileSync(path.join(module_path, pkg.main), 'utf8');
-
-      if (main_file.match(/__esModule/g)) {
-        module_cache[module_name] = true;
-        this.addFailure(this.createCustomFailure(
-          true,
-          node.getStart(),
-          node.getWidth(),
-          variable_name,
-          module_name,
-          quote
-        ));
-      }
+    const main_file = loadMainFile(module_name);
+    if (main_file && main_file.match(/__esModule/g)) {
+      module_cache[module_name] = true;
+      this.addFailure(this.createCustomFailure(
+        true,
+        node.getStart(),
+        node.getWidth(),
+        variable_name,
+        module_name,
+        quote
+      ));
     }
 
     // call the base version of this visitor to actually parse this node
