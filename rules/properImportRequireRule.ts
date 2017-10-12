@@ -3,6 +3,9 @@ import * as path from 'path';
 import * as Lint from 'tslint';
 import * as ts from 'typescript';
 
+// True if es6 module
+const module_cache: { [k: string]: boolean } = {};
+
 function findModulePath(module_name: string): string {
   let current_dir = process.cwd();
   if (module_name.startsWith('./')) return ''; // Currently doesn't support local modules.
@@ -19,52 +22,104 @@ function findModulePath(module_name: string): string {
 
 // The walker takes care of all the work.
 class ProperImportRequire extends Lint.RuleWalker {
-  public visitImportDeclaration(node: ts.ImportDeclaration) {
-    const variable_name = ((node.importClause as ts.ImportClause).namedBindings as ts.NamespaceImport).name.escapedText;
-    const quote = node.moduleSpecifier.getText()[0];
-    const module_name = node.moduleSpecifier.getText().replace(/("|')/g, '');
-    const module_path = findModulePath(module_name);
+  private createCustomFailure(es6: boolean, start: number, end: number, variable_name: string, module_name: string, quote: string) {
+    if (es6) {
+      const replacement = `import * as ${variable_name} from ${quote}${module_name}${quote};`;
+      return this.createFailure(
+        start,
+        end,
+        `${module_name} is using ES6 exports. Use ${replacement} instead.`,
+        Lint.Replacement.replaceFromTo(start, end, replacement)
+      )
+    }
 
+    const replacement = `import ${variable_name} = require(${quote}${module_name}${quote});`;
+    return this.createFailure(
+      start,
+      end,
+      `${module_name} is not using ES6 exports. Use ${replacement} instead.`,
+      Lint.Replacement.replaceFromTo(start, end, replacement)
+    )
+  }
+
+  public visitImportDeclaration(node: ts.ImportDeclaration) {
+    const module_name = node.moduleSpecifier.getText().replace(/("|')/g, '');
+    if (module_cache[module_name]) {
+      return super.visitImportDeclaration(node);
+    }
+
+    const variable_name = ((node.importClause as ts.ImportClause).namedBindings as ts.NamespaceImport).name.escapedText as string;
+    const quote = node.moduleSpecifier.getText()[0];
+
+    if (module_cache[module_name] === false) {
+      this.addFailure(this.createCustomFailure(
+        false,
+        node.getStart(),
+        node.getWidth(),
+        variable_name,
+        module_name,
+        quote
+      ));
+      return super.visitImportDeclaration(node);
+    }
+
+    const module_path = findModulePath(module_name);
     if (module_path) {
       const pkg = require(path.join(module_path, 'package.json'));
       const main_file = fs.readFileSync(path.join(module_path, pkg.main), 'utf8');
 
       if (!main_file.match(/__esModule/g)) {
-        const start = node.getStart();
-        const end = node.getWidth();
-        const replacement = `import ${variable_name} = require(${quote}${module_name}${quote});`;
-        this.addFailure(this.createFailure(
-          start,
-          end,
-          `${module_name} is not using ES6 exports. Use ${replacement} instead.`,
-          Lint.Replacement.replaceFromTo(start, end, replacement)
+        module_cache[module_name] = false;
+        this.addFailure(this.createCustomFailure(
+          false,
+          node.getStart(),
+          node.getWidth(),
+          variable_name,
+          module_name,
+          quote
         ));
       }
     }
 
-    // call the base version of this visitor to actually parse this node
     super.visitImportDeclaration(node);
   }
 
   public visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration) {
-    const variable_name = node.name.escapedText;
-    const quote = node.moduleReference.getText().match(/'/g) ? `'` : `"`;
     const module_name = node.moduleReference.getChildren()[node.moduleReference.getChildCount() - 2].getText().replace(/("|')/g, '');
-    const module_path = findModulePath(module_name);
+    if (module_cache[module_name] === false) {
+      return super.visitImportEqualsDeclaration(node);
+    }
 
+    const variable_name = node.name.escapedText as string;
+    const quote = node.moduleReference.getText().match(/'/g) ? `'` : `"`;
+
+    if (module_cache[module_name]) {
+      this.addFailure(this.createCustomFailure(
+        true,
+        node.getStart(),
+        node.getWidth(),
+        variable_name,
+        module_name,
+        quote
+      ));
+      super.visitImportEqualsDeclaration(node);
+      return;
+    }
+
+    const module_path = findModulePath(module_name);
     if (module_path) {
       const pkg = require(path.join(module_path, 'package.json'));
       const main_file = fs.readFileSync(path.join(module_path, pkg.main), 'utf8');
 
       if (main_file.match(/__esModule/g)) {
-        const start = node.getStart();
-        const end = node.getWidth();
-        const replacement = `import * as ${variable_name} from ${quote}${module_name}${quote};`;
-        this.addFailure(this.createFailure(
-          start,
-          end,
-          `${module_name} is using ES6 exports. Use ${replacement} instead.`,
-          Lint.Replacement.replaceFromTo(start, end, replacement)
+        module_cache[module_name] = true;
+        this.addFailure(this.createCustomFailure(
+          true,
+          node.getStart(),
+          node.getWidth(),
+          variable_name,
+          module_name,
+          quote
         ));
       }
     }
