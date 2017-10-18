@@ -27,7 +27,7 @@ function loadMainFile(module_name: string): string | undefined {
   const pkg = require(path.join(module_path, 'package.json'));
   let main_file_path = path.join(module_path, pkg.main || 'index.js');
   if (!fs.existsSync(main_file_path)) {
-    if (main_file_path.match(/\.js/,)) return;
+    if (main_file_path.match(/\.js/)) return;
     main_file_path += '.js';
     if (!fs.existsSync(main_file_path)) return;
   }
@@ -37,34 +37,13 @@ function loadMainFile(module_name: string): string | undefined {
 
 // The walker takes care of all the work.
 class ProperImportRequire extends Lint.RuleWalker {
-  private createCustomFailure(es6: boolean, start: number, length: number, variable_name: string, module_name: string, quote: string) {
-    console.log(module_name, start, length);
-    if (es6) {
-      const replacement = `import * as ${variable_name} from ${quote}${module_name}${quote};`;
-      return this.createFailure(
-        start,
-        length,
-        `${module_name} is using ES6 exports. Use ${replacement} instead.`,
-        Lint.Replacement.replaceFromTo(start, start + length, replacement)
-      )
-    }
-
-    const replacement = `import ${variable_name} = require(${quote}${module_name}${quote});`;
-    return this.createFailure(
-      start,
-      length,
-      `${module_name} is not using ES6 exports. Use ${replacement} instead.`,
-      Lint.Replacement.replaceFromTo(start, start + length, replacement)
-    )
-  }
-
   public visitImportDeclaration(node: ts.ImportDeclaration) {
     const module_name = node.moduleSpecifier.getText().replace(/("|')/g, '');
-    if (module_cache[module_name]) {
+    if (module_cache[module_name] || node.getText().includes('{')) {
       return super.visitImportDeclaration(node);
     }
 
-    const variable_name = ((node.importClause as ts.ImportClause).namedBindings as ts.NamespaceImport).name.escapedText as string;
+    const variable_name = node.getText().split('import')[1].split('from')[0].trim();
     const quote = node.moduleSpecifier.getText()[0];
 
     if (module_cache[module_name] === false) {
@@ -132,6 +111,26 @@ class ProperImportRequire extends Lint.RuleWalker {
 
     // call the base version of this visitor to actually parse this node
     super.visitImportEqualsDeclaration(node);
+  }
+
+  private createCustomFailure(es6: boolean, start: number, length: number, variable_name: string, module_name: string, quote: string) {
+    if (es6) {
+      const replacement = `import * as ${variable_name} from ${quote}${module_name}${quote};`;
+      return this.createFailure(
+        start,
+        length,
+        `${module_name} is using ES6 exports. Use ${replacement} instead.`,
+        Lint.Replacement.replaceFromTo(start, start + length, replacement)
+      );
+    }
+
+    const replacement = `import ${variable_name} = require(${quote}${module_name}${quote});`;
+    return this.createFailure(
+      start,
+      length,
+      `${module_name} is not using ES6 exports. Use ${replacement} instead.`,
+      Lint.Replacement.replaceFromTo(start, start + length, replacement)
+    );
   }
 }
 
