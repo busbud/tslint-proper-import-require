@@ -24,15 +24,7 @@ function loadMainFile(module_name: string): string | undefined {
   const module_path = findModulePath(module_name);
   if (!module_path) return;
 
-  const pkg = require(path.join(module_path, 'package.json'));
-  let main_file_path = path.join(module_path, pkg.main || 'index.js');
-  if (!fs.existsSync(main_file_path)) {
-    if (main_file_path.match(/\.js/)) return;
-    main_file_path += '.js';
-    if (!fs.existsSync(main_file_path)) return;
-  }
-
-  return fs.readFileSync(main_file_path, 'utf8');
+  return fs.readFileSync(require.resolve(module_path), 'utf8');
 }
 
 // The walker takes care of all the work.
