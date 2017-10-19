@@ -35,7 +35,12 @@ class ProperImportRequire extends Lint.RuleWalker {
       return super.visitImportDeclaration(node);
     }
 
-    const variable_name = node.getText().split('import')[1].split('from')[0].trim();
+    const variable_name = node.getText()
+      .split('import')[1]
+      .split('from')[0]
+      .replace('* as', '')
+      .trim();
+
     const quote = node.moduleSpecifier.getText()[0];
 
     if (module_cache[module_name] === false) {
