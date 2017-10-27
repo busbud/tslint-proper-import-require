@@ -23,8 +23,11 @@ function findModulePath(module_name: string): string {
 function loadMainFile(module_name: string): string | undefined {
   const module_path = findModulePath(module_name);
   if (!module_path) return;
-
-  return fs.readFileSync(require.resolve(module_path), 'utf8');
+  try {
+    return fs.readFileSync(require.resolve(module_path), 'utf8');
+  } catch {
+    return;
+  }
 }
 
 // The walker takes care of all the work.
